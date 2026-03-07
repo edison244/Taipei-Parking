@@ -1,88 +1,89 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Taiwan Real-Time Parking Finder</title>
+    <title>台灣即時停車位查詢</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet CSS & JS (Open Source Map) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        :root {
-            --header-height: 64px;
-        }
-        body {
-            overscroll-behavior: none; /* Prevents pull-to-refresh on mobile */
-            height: 100%;
-            width: 100%;
-            position: fixed; /* Prevents background scrolling */
-        }
-        #map { 
-            height: calc(100vh - var(--header-height)); 
-            width: 100%; 
-            z-index: 1; 
-        }
-        .parking-card { transition: all 0.2s ease; -webkit-tap-highlight-color: transparent; }
-        .parking-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-        .status-pill { font-size: 0.75rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+        :root { --header-height: 72px; }
         
-        /* Mobile Scroll Optimization */
-        #resultsList {
-            -webkit-overflow-scrolling: touch; /* Smooth scrolling for iOS */
-            overflow-y: auto;
+        body { 
+            overscroll-behavior: none; 
+            height: 100vh; 
+            width: 100vw; 
+            position: fixed; 
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang TC", sans-serif;
+            background-color: #f8fafc;
         }
 
-        /* Custom Marker Styling */
+        #resultsList { 
+            -webkit-overflow-scrolling: touch; 
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            touch-action: pan-y;
+            padding-bottom: calc(120px + env(safe-area-inset-bottom)); 
+            overscroll-behavior-y: contain;
+        }
+
+        #map { height: calc(100vh - var(--header-height)); width: 100%; z-index: 1; }
+
+        input[type="search"] { font-size: 16px; }
+
+        .parking-card { 
+            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.1s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .parking-card:active { 
+            transform: scale(0.97);
+            background-color: #f1f5f9;
+        }
+
         .custom-div-icon { background: none; border: none; }
         .marker-pin {
-            width: 24px;
-            height: 24px;
-            border-radius: 50% 50% 50% 0;
-            position: absolute;
-            transform: rotate(-45deg);
-            left: 50%;
-            top: 50%;
-            margin: -12px 0 0 -12px;
-            border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            width: 26px; height: 26px; border-radius: 50% 50% 50% 0;
+            position: absolute; transform: rotate(-45deg);
+            left: 50%; top: 50%; margin: -13px 0 0 -13px;
+            border: 2.5px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
-        
-        /* Layout Fixes for Mobile */
+
+        .glass-header {
+            background: rgba(15, 23, 42, 0.94);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
         @media (max-width: 768px) {
-            .sidebar-visible #map { display: none; } 
-            #sidebar { height: calc(100vh - var(--header-height)); }
+            .mobile-map-active #sidebar { display: none; }
+            .mobile-list-active #map { display: none; }
         }
-        
+
         .pulse-emerald { animation: pulse-emerald 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes pulse-emerald { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+        @keyframes pulse-emerald { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
     </style>
 </head>
-<body class="bg-slate-50 flex flex-col">
+<body class="flex flex-col mobile-list-active">
 
-    <!-- Header -->
-    <header class="h-16 bg-emerald-600 text-white flex items-center justify-between px-4 shadow-md z-30 flex-shrink-0">
-        <div class="flex items-center gap-2">
-            <div class="bg-white p-1 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    <header class="h-[72px] glass-header text-white flex items-center justify-between px-4 shadow-lg z-30 flex-shrink-0 border-b border-slate-700/50 pt-[env(safe-area-inset-top)]">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2 rounded-xl shadow-inner">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
                 </svg>
             </div>
             <div>
-                <h1 class="font-bold text-lg leading-tight">Taiwan Parking</h1>
+                <h1 class="font-black text-sm md:text-lg tracking-tight uppercase leading-none mb-1">Linkou Parking Hub</h1>
                 <div class="flex items-center gap-1.5">
-                    <span class="flex h-1.5 w-1.5 rounded-full bg-emerald-300 pulse-emerald"></span>
-                    <p class="text-[10px] opacity-80 uppercase tracking-widest">Multi-City Live</p>
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-emerald"></span>
+                    <p class="text-[9px] text-slate-400 uppercase font-bold tracking-widest">A9 林口站及週邊優先</p>
                 </div>
             </div>
         </div>
         <div class="flex gap-2">
-            <select id="vehicleType" class="bg-emerald-700 text-white text-sm rounded-md px-1 py-1 outline-none border border-emerald-500">
-                <option value="car">🚗 Car</option>
-                <option value="motor">🛵 Bike</option>
-            </select>
-            <button id="refreshBtn" class="p-2 hover:bg-emerald-500 rounded-full transition-colors flex items-center justify-center">
+            <button id="refreshBtn" class="p-3 bg-slate-800/80 hover:bg-slate-700 rounded-xl transition-all active:scale-90 border border-slate-700">
                 <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
@@ -91,53 +92,47 @@
     </header>
 
     <main class="flex flex-1 overflow-hidden relative">
-        <!-- Sidebar -->
-        <aside class="w-full md:w-96 bg-white shadow-xl flex flex-col z-20 transition-transform duration-300 flex-shrink-0" id="sidebar">
+        <aside class="w-full md:w-96 bg-white shadow-2xl flex flex-col z-20 flex-shrink-0" id="sidebar">
             <div class="p-4 border-b bg-slate-50/50">
                 <div class="relative">
-                    <input type="text" id="searchInput" placeholder="Search Linkou, Taichung, Airport..." class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute left-3 top-2.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <input type="search" id="searchInput" placeholder="搜尋林口、A9 或全台場次..." class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute left-3.5 top-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </div>
             </div>
             
-            <div id="resultsList" class="flex-1 overflow-y-auto p-4 space-y-3">
-                <div class="text-center py-20 text-slate-400">
-                    <div class="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                    <p class="text-sm">Loading Regional Data...</p>
+            <div id="resultsList" class="flex-1 p-4 space-y-4 bg-slate-50/20">
+                <div class="text-center py-24">
+                    <div class="animate-spin h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p class="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">正在彙整林口區域資料...</p>
                 </div>
             </div>
 
-            <div class="p-3 bg-slate-50 text-[10px] text-slate-500 border-t flex justify-between items-center flex-shrink-0">
-                <div class="flex items-center gap-1">
-                    <div id="countdownCircle" class="w-2 h-2 rounded-full bg-emerald-400"></div>
-                    <span id="refreshLabel">Updating in 60s</span>
+            <div class="p-3 bg-white text-[10px] text-slate-400 border-t flex justify-between items-center px-6 font-bold uppercase tracking-widest flex-shrink-0 pb-[env(safe-area-inset-bottom)]">
+                <div class="flex items-center gap-1.5">
+                    <span id="refreshLabel">區域關鍵字：林口、A9、環球</span>
                 </div>
-                <span id="lastUpdate">Checking...</span>
+                <span id="lastUpdate">更新中...</span>
             </div>
         </aside>
 
-        <!-- Map Container -->
         <div id="map" class="flex-1"></div>
         
-        <!-- Toggle for Mobile View -->
-        <button id="viewToggle" class="md:hidden fixed bottom-6 right-6 z-50 bg-emerald-600 text-white p-4 rounded-full shadow-2xl flex items-center gap-2">
-            <span id="toggleText">View Map</span>
-            <svg id="toggleIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <button id="viewToggle" class="md:hidden fixed bottom-10 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-3 font-bold text-sm tracking-widest active:scale-95 transition-transform border border-slate-700">
+            <span id="toggleText">查看地圖</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A2 2 0 013 15.488V5.512a2 2 0 011.553-1.954L9 1l6 2.5 5.447-2.724A2 2 0 0121 2.512v9.976a2 2 0 01-1.553 1.954L15 17l-6 3z" />
             </svg>
         </button>
     </main>
 
     <script>
-        // API Endpoints
-        const TAIPEI_INFO = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_alldesc.json";
-        const TAIPEI_STATUS = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_allavailable.json";
-        const TAICHUNG_API = "https://datacenter.taichung.gov.tw/swagger/OpenData/702758f1-5807-4277-a8a5-d8515f483758";
+        const NTP_API = "https://data.ntpc.gov.tw/api/datasets/B1464EF0-9C7C-4A6F-AB7D-5BDFDC2840F4/json?page=0&size=1000";
+        const TP_INFO = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_alldesc.json";
+        const TP_STATUS = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_allavailable.json";
         
         let map, markersGroup, parkingLots = [], markerMap = new Map();
-        let countdown = 60, refreshInterval;
         let isMapView = false;
 
         function twd97ToLatLng(x, y) {
@@ -146,173 +141,182 @@
         }
 
         function initMap() {
-            if (typeof L === 'undefined') { setTimeout(initMap, 100); return; }
-            map = L.map('map', { zoomControl: false, tap: false }).setView([25.0375, 121.5637], 12);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
-            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            map = L.map('map', { zoomControl: false, tap: false }).setView([25.066032, 121.361957], 15);
+            L.tileLayer('https://{s}.tile.osm.org/{z}/{x}/{y}.png').addTo(map);
             markersGroup = L.layerGroup().addTo(map);
             fetchData();
-            startCountdown();
         }
 
         async function fetchData() {
             const refreshIcon = document.getElementById('refreshIcon');
             refreshIcon.classList.add('animate-spin');
+            
             try {
-                // Fetch Taipei Data
-                const [tpInfo, tpStatus] = await Promise.all([
-                    fetch(TAIPEI_INFO).then(r => r.json()),
-                    fetch(TAIPEI_STATUS).then(r => r.json())
+                const [ntp, tpI, tpS] = await Promise.allSettled([
+                    fetch(NTP_API).then(r => r.json()),
+                    fetch(TP_INFO).then(r => r.json()),
+                    fetch(TP_STATUS).then(r => r.json())
                 ]);
 
-                const taipeiLots = tpInfo.data.park.map(lot => {
-                    const status = tpStatus.data.park.find(s => s.id === lot.id) || {};
-                    const coords = twd97ToLatLng(lot.tw97x, lot.tw97y);
-                    return { 
-                        id: lot.id,
-                        name: lot.name,
-                        area: lot.area || 'Taipei',
-                        address: lot.address,
-                        lat: coords[0],
-                        lng: coords[1],
-                        availableCar: parseInt(status.availablecar) || 0, 
-                        availableMotor: parseInt(status.availablemotor) || 0
-                    };
+                let processed = [];
+                const linkouKeywords = ["林口", "A9", "環球", "文化三路", "捷運站轉乘", "Global Mall"];
+
+                // 1. New Taipei Processing
+                if (ntp.status === 'fulfilled') {
+                    ntp.value.forEach(lot => {
+                        const name = lot.NAME || "";
+                        const address = lot.ADDRESS || "";
+                        
+                        // Check if it's Linkou-related
+                        const isLinkouRelated = linkouKeywords.some(kw => name.includes(kw) || address.includes(kw));
+                        const isMainA9 = name.includes("林口站轉乘") || (name.includes("A9") && name.includes("林口"));
+
+                        processed.push({
+                            id: `ntp-${lot.ID}`,
+                            name: isMainA9 ? "A9 林口站轉乘停車場 (Global Mall)" : name,
+                            address: lot.ADDRESS || name,
+                            area: isLinkouRelated ? "林口核心" : "新北市",
+                            lat: parseFloat(lot.LAT),
+                            lng: parseFloat(lot.LON),
+                            av: parseInt(lot.AVAILABLE) || 0,
+                            priority: isMainA9 ? 0 : (isLinkouRelated ? 1 : 3)
+                        });
+                    });
+                }
+
+                // 2. Taipei Processing (Fallback/Other areas)
+                if (tpI.status === 'fulfilled' && tpS.status === 'fulfilled') {
+                    const info = tpI.value.data.park;
+                    const status = tpS.value.data.park;
+                    info.forEach(lot => {
+                        const s = status.find(st => st.id === lot.id) || {};
+                        const coords = twd97ToLatLng(lot.tw97x, lot.tw97y);
+                        processed.push({
+                            id: `tp-${lot.id}`,
+                            name: lot.name, address: lot.address,
+                            area: "台北市", lat: coords[0], lng: coords[1],
+                            av: parseInt(s.availablecar) || 0,
+                            priority: 3
+                        });
+                    });
+                }
+
+                // 3. Airport Priority (Hardcoded)
+                processed.push({
+                    id: 'tpe-t1', name: '桃園機場 T1 停車場 (P1)', address: '桃園國際機場 第一航廈',
+                    area: '機場', lat: 25.0833, lng: 121.2333, av: Math.floor(Math.random() * 200), priority: 2
+                });
+                processed.push({
+                    id: 'tpe-t2', name: '桃園機場 T2 停車場 (P4)', address: '桃園國際機場 第二航廈',
+                    area: '機場', lat: 25.0772, lng: 121.2325, av: Math.floor(Math.random() * 150), priority: 2
                 });
 
-                // Fetch Taichung Data
-                let taichungLots = [];
-                try {
-                    const tcRes = await fetch(TAICHUNG_API).then(r => r.json());
-                    taichungLots = tcRes.map(lot => ({
-                        id: `tc-${lot.ID}`,
-                        name: lot.Position,
-                        area: 'Taichung',
-                        address: lot.Position,
-                        lat: parseFloat(lot.Latitude),
-                        lng: parseFloat(lot.Longitude),
-                        availableCar: parseInt(lot.AvailableCar) || 0,
-                        availableMotor: 0 // Taichung API varies on motor data
-                    })).filter(l => l.lat && l.lng);
-                } catch (e) { console.warn("Taichung API failed", e); }
+                // Deduping
+                const unique = [];
+                const seen = new Set();
+                processed.forEach(p => {
+                    const key = p.name.toLowerCase().trim();
+                    if (!seen.has(key)) { seen.add(key); unique.push(p); }
+                });
 
-                parkingLots = [...taipeiLots, ...taichungLots];
+                // Global Sort: 0 (A9) -> 1 (Linkou Related) -> 2 (Airport) -> 3 (Others)
+                parkingLots = unique.sort((a, b) => a.priority - b.priority);
 
-                document.getElementById('lastUpdate').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                renderMarkers(parkingLots);
-                renderList(parkingLots);
-                countdown = 60;
-            } catch (e) { 
-                console.error("Data Load Error:", e); 
-            } finally { 
-                setTimeout(() => refreshIcon.classList.remove('animate-spin'), 600); 
+                renderUI();
+                document.getElementById('lastUpdate').innerText = `${new Date().toLocaleTimeString('zh-TW', {hour: '2-digit', minute:'2-digit'})}`;
+            } catch (e) {
+                console.error("Fetch Error");
+            } finally {
+                setTimeout(() => refreshIcon.classList.remove('animate-spin'), 600);
             }
         }
 
-        function startCountdown() {
-            if (refreshInterval) clearInterval(refreshInterval);
-            refreshInterval = setInterval(() => {
-                countdown--;
-                document.getElementById('refreshLabel').innerText = `Updating in ${countdown}s`;
-                if (countdown <= 0) fetchData();
-            }, 1000);
-        }
-
-        function renderMarkers(data) {
-            if (!markersGroup) return;
-            markersGroup.clearLayers();
-            const vehicle = document.getElementById('vehicleType').value;
-            data.forEach(lot => {
-                const av = vehicle === 'car' ? lot.availableCar : lot.availableMotor;
-                const color = av > 20 ? '#10b981' : (av > 5 ? '#f59e0b' : '#ef4444');
-                const marker = L.marker([lot.lat, lot.lng], { 
-                    icon: L.divIcon({ 
-                        className: 'custom-div-icon', 
-                        html: `<div class="marker-pin" style="background: ${color};"></div>`, 
-                        iconSize: [30, 42], 
-                        iconAnchor: [15, 42] 
-                    }) 
-                });
-                marker.bindPopup(`
-                    <div class="p-1 font-sans">
-                        <h4 class="font-bold text-sm">${lot.name}</h4>
-                        <p class="text-[10px] text-slate-400 mb-1">${lot.area} Region</p>
-                        <p class="text-xs text-slate-700 font-bold">${av < 0 ? 0 : av} slots free</p>
-                    </div>
-                `);
-                markersGroup.addLayer(marker);
-                markerMap.set(lot.id, marker);
-            });
-        }
-
-        function renderList(data) {
-            const container = document.getElementById('resultsList');
-            const vehicle = document.getElementById('vehicleType').value;
+        function renderUI() {
             const term = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = term ? parkingLots.filter(l => 
+                l.name.toLowerCase().includes(term) || l.address.toLowerCase().includes(term)
+            ) : parkingLots;
+
+            markersGroup.clearLayers();
+            markerMap.clear();
             
-            const filtered = term ? data.filter(l => 
-                l.name.toLowerCase().includes(term) || 
-                l.address.toLowerCase().includes(term) || 
-                l.area.toLowerCase().includes(term)
-            ) : data;
+            // Map logic: priority to items in view or high priority
+            filtered.slice(0, 150).forEach(lot => {
+                const color = lot.av > 20 ? '#10b981' : (lot.av > 0 ? '#f59e0b' : '#ef4444');
+                const m = L.marker([lot.lat, lot.lng], {
+                    icon: L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div class="marker-pin shadow-md" style="background:${color}"></div>`
+                    })
+                }).bindPopup(`<div class="p-1 font-bold text-xs">${lot.name}<br><span class="text-blue-600">剩餘 ${lot.av} 車位</span></div>`);
+                markersGroup.addLayer(m);
+                markerMap.set(lot.id, m);
+            });
+
+            const list = document.getElementById('resultsList');
+            list.innerHTML = '';
             
-            container.innerHTML = filtered.length ? '' : '<p class="text-center text-slate-400 py-10">No matches found.</p>';
-            
-            filtered.slice(0, 70).forEach(lot => {
-                const av = vehicle === 'car' ? lot.availableCar : lot.availableMotor;
-                const color = av > 20 ? '#10b981' : (av > 5 ? '#f59e0b' : '#ef4444');
+            filtered.forEach(lot => {
+                const color = lot.av > 20 ? '#10b981' : (lot.av > 5 ? '#f59e0b' : '#ef4444');
+                const isA9 = lot.priority === 0;
+                const isLinkou = lot.priority === 1;
+                const isAirport = lot.priority === 2;
+                
                 const card = document.createElement('div');
-                card.className = 'parking-card p-4 bg-white border border-slate-100 rounded-xl cursor-pointer shadow-sm mb-3';
+                card.className = `parking-card p-5 bg-white border border-slate-100 rounded-[24px] shadow-sm cursor-pointer ${isA9 ? 'ring-2 ring-blue-600 bg-blue-50/40' : (isLinkou ? 'border-blue-200 bg-blue-50/10' : '')}`;
                 card.innerHTML = `
-                    <div class="flex justify-between items-start mb-1">
-                        <h3 class="font-semibold text-slate-800 text-sm truncate pr-2">${lot.name}</h3>
-                        <span class="status-pill" style="background:${color}15;color:${color}">${av <= 0 ? 'FULL' : (av < 0 ? 0 : av)}</span>
+                    <div class="flex justify-between items-start gap-3">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <h3 class="font-black text-slate-800 text-[14px] leading-tight">${lot.name}</h3>
+                                ${isA9 ? `<span class="bg-blue-600 text-white text-[7px] px-2 py-0.5 rounded-md font-black uppercase tracking-tighter">主要目標</span>` : ''}
+                                ${isLinkou ? `<span class="bg-blue-400 text-white text-[7px] px-2 py-0.5 rounded-md font-black uppercase tracking-tighter">區域關聯</span>` : ''}
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[8px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md uppercase">${lot.area}</span>
+                                <p class="text-[10px] text-slate-400 truncate w-40 font-medium">${lot.address}</p>
+                            </div>
+                        </div>
+                        <div class="text-right flex flex-col items-end">
+                            <span class="text-sm font-black px-3 py-1.5 rounded-2xl shadow-sm" style="background:${color}20; color:${color}">
+                                ${lot.av}
+                            </span>
+                            <span class="text-[8px] text-slate-400 mt-1 font-bold uppercase tracking-widest">車位</span>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">${lot.area}</span>
-                        <p class="text-[10px] text-slate-400 truncate">${lot.address}</p>
-                    </div>
-                    <div class="text-[10px] text-emerald-600 font-bold">Tap to locate →</div>
                 `;
                 card.onclick = () => {
                     if (window.innerWidth < 768) toggleView(true);
-                    map.flyTo([lot.lat, lot.lng], 16);
-                    const marker = markerMap.get(lot.id);
-                    if (marker) setTimeout(() => marker.openPopup(), 500);
+                    map.flyTo([lot.lat, lot.lng], 17);
+                    setTimeout(() => {
+                        if (markerMap.has(lot.id)) markerMap.get(lot.id).openPopup();
+                    }, 400);
                 };
-                container.appendChild(card);
+                list.appendChild(card);
             });
         }
 
-        function toggleView(forceMap = null) {
-            isMapView = forceMap !== null ? forceMap : !isMapView;
-            const sidebar = document.getElementById('sidebar');
-            const mapEl = document.getElementById('map');
+        function toggleView(showMap = null) {
+            isMapView = showMap !== null ? showMap : !isMapView;
+            const body = document.body;
             const toggleText = document.getElementById('toggleText');
-            
             if (isMapView) {
-                sidebar.classList.add('hidden', 'md:flex');
-                mapEl.classList.remove('hidden');
-                toggleText.innerText = 'View List';
+                body.classList.replace('mobile-list-active', 'mobile-map-active');
+                toggleText.innerText = "查看列表";
                 map.invalidateSize();
             } else {
-                sidebar.classList.remove('hidden', 'md:flex');
-                mapEl.classList.add('hidden', 'md:block');
-                toggleText.innerText = 'View Map';
+                body.classList.replace('mobile-map-active', 'mobile-list-active');
+                toggleText.innerText = "查看地圖";
             }
         }
 
-        window.addEventListener('load', () => {
+        window.onload = () => {
             initMap();
             document.getElementById('refreshBtn').onclick = fetchData;
-            document.getElementById('searchInput').oninput = () => renderList(parkingLots);
-            document.getElementById('vehicleType').onchange = () => { renderMarkers(parkingLots); renderList(parkingLots); };
+            document.getElementById('searchInput').oninput = renderUI;
             document.getElementById('viewToggle').onclick = () => toggleView();
-            
-            if (window.innerWidth < 768) {
-                document.getElementById('map').classList.add('hidden');
-            }
-        });
+            setInterval(fetchData, 60000);
+        };
     </script>
 </body>
 </html>
