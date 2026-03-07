@@ -131,13 +131,10 @@
     </main>
 
     <script>
-        // API Endpoints for Taipei, New Taipei (Linkou), Taichung, and Airport area
+        // API Endpoints
         const TAIPEI_INFO = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_alldesc.json";
         const TAIPEI_STATUS = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_allavailable.json";
-        
-        // Note: New Taipei City and Taichung often use ODATA or specific XML/JSON wrappers. 
-        // We simulate the multi-city merge using the primary data source which covers 
-        // large parts of the metropolitan area including transit hubs.
+        const TAICHUNG_API = "https://datacenter.taichung.gov.tw/swagger/OpenData/702758f1-5807-4277-a8a5-d8515f483758";
         
         let map, markersGroup, parkingLots = [], markerMap = new Map();
         let countdown = 60, refreshInterval;
@@ -145,7 +142,6 @@
 
         function twd97ToLatLng(x, y) {
             const dx = parseFloat(x), dy = parseFloat(y);
-            // Basic transformation for Taiwan Region (TWD97 -> WGS84)
             return [25.0 + (dy - 2765971.6) / 110852.8, 121.5 + (dx - 302979.45) / 102324.2];
         }
 
@@ -163,22 +159,44 @@
             const refreshIcon = document.getElementById('refreshIcon');
             refreshIcon.classList.add('animate-spin');
             try {
-                // In a production environment, we would fetch from TCG, NTC, and Taichung portals separately.
-                // For this demo, we use the Taipei Metropolitan data which includes Linkou and key Airport hubs.
-                const [infoRes, statusRes] = await Promise.all([
+                // Fetch Taipei Data
+                const [tpInfo, tpStatus] = await Promise.all([
                     fetch(TAIPEI_INFO).then(r => r.json()),
                     fetch(TAIPEI_STATUS).then(r => r.json())
                 ]);
 
-                parkingLots = infoRes.data.park.map(lot => {
-                    const status = statusRes.data.park.find(s => s.id === lot.id) || {};
+                const taipeiLots = tpInfo.data.park.map(lot => {
+                    const status = tpStatus.data.park.find(s => s.id === lot.id) || {};
+                    const coords = twd97ToLatLng(lot.tw97x, lot.tw97y);
                     return { 
-                        ...lot, 
+                        id: lot.id,
+                        name: lot.name,
+                        area: lot.area || 'Taipei',
+                        address: lot.address,
+                        lat: coords[0],
+                        lng: coords[1],
                         availableCar: parseInt(status.availablecar) || 0, 
-                        availableMotor: parseInt(status.availablemotor) || 0,
-                        region: lot.area || 'Unknown'
+                        availableMotor: parseInt(status.availablemotor) || 0
                     };
-                }).filter(lot => lot.tw97x && lot.tw97y);
+                });
+
+                // Fetch Taichung Data
+                let taichungLots = [];
+                try {
+                    const tcRes = await fetch(TAICHUNG_API).then(r => r.json());
+                    taichungLots = tcRes.map(lot => ({
+                        id: `tc-${lot.ID}`,
+                        name: lot.Position,
+                        area: 'Taichung',
+                        address: lot.Position,
+                        lat: parseFloat(lot.Latitude),
+                        lng: parseFloat(lot.Longitude),
+                        availableCar: parseInt(lot.AvailableCar) || 0,
+                        availableMotor: 0 // Taichung API varies on motor data
+                    })).filter(l => l.lat && l.lng);
+                } catch (e) { console.warn("Taichung API failed", e); }
+
+                parkingLots = [...taipeiLots, ...taichungLots];
 
                 document.getElementById('lastUpdate').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                 renderMarkers(parkingLots);
@@ -207,7 +225,7 @@
             data.forEach(lot => {
                 const av = vehicle === 'car' ? lot.availableCar : lot.availableMotor;
                 const color = av > 20 ? '#10b981' : (av > 5 ? '#f59e0b' : '#ef4444');
-                const marker = L.marker(twd97ToLatLng(lot.tw97x, lot.tw97y), { 
+                const marker = L.marker([lot.lat, lot.lng], { 
                     icon: L.divIcon({ 
                         className: 'custom-div-icon', 
                         html: `<div class="marker-pin" style="background: ${color};"></div>`, 
@@ -218,7 +236,7 @@
                 marker.bindPopup(`
                     <div class="p-1 font-sans">
                         <h4 class="font-bold text-sm">${lot.name}</h4>
-                        <p class="text-[10px] text-slate-400 mb-1">${lot.area} Area</p>
+                        <p class="text-[10px] text-slate-400 mb-1">${lot.area} Region</p>
                         <p class="text-xs text-slate-700 font-bold">${av < 0 ? 0 : av} slots free</p>
                     </div>
                 `);
@@ -232,14 +250,13 @@
             const vehicle = document.getElementById('vehicleType').value;
             const term = document.getElementById('searchInput').value.toLowerCase();
             
-            // Filtering for Linkou, Taichung, Airport or general search
             const filtered = term ? data.filter(l => 
                 l.name.toLowerCase().includes(term) || 
                 l.address.toLowerCase().includes(term) || 
                 l.area.toLowerCase().includes(term)
             ) : data;
             
-            container.innerHTML = filtered.length ? '' : '<p class="text-center text-slate-400 py-10">No matches in Linkou, Taichung or Airport areas.</p>';
+            container.innerHTML = filtered.length ? '' : '<p class="text-center text-slate-400 py-10">No matches found.</p>';
             
             filtered.slice(0, 70).forEach(lot => {
                 const av = vehicle === 'car' ? lot.availableCar : lot.availableMotor;
@@ -258,9 +275,8 @@
                     <div class="text-[10px] text-emerald-600 font-bold">Tap to locate →</div>
                 `;
                 card.onclick = () => {
-                    const coords = twd97ToLatLng(lot.tw97x, lot.tw97y);
                     if (window.innerWidth < 768) toggleView(true);
-                    map.flyTo(coords, 16);
+                    map.flyTo([lot.lat, lot.lng], 16);
                     const marker = markerMap.get(lot.id);
                     if (marker) setTimeout(() => marker.openPopup(), 500);
                 };
