@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taipei Real-Time Parking Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS & JS (Open Source Map) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: calc(100vh - 64px); width: 100%; z-index: 1; }
+        .parking-card { transition: all 0.2s ease; }
+        .parking-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .status-pill { font-size: 0.75rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        /* Custom Marker Styling */
+        .custom-div-icon {
+            background: none;
+            border: none;
+        }
+        .marker-pin {
+            width: 24px;
+            height: 24px;
+            border-radius: 50% 50% 50% 0;
+            position: absolute;
+            transform: rotate(-45deg);
+            left: 50%;
+            top: 50%;
+            margin: -12px 0 0 -12px;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        /* Pulse animation for live data indicator */
+        .pulse-emerald {
+            animation: pulse-emerald 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-emerald {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .4; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 overflow-hidden">
+
+    <!-- Header -->
+    <header class="h-16 bg-emerald-600 text-white flex items-center justify-between px-4 shadow-md z-30 relative">
+        <div class="flex items-center gap-2">
+            <div class="bg-white p-1 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight">Taipei Parking</h1>
+                <div class="flex items-center gap-1.5">
+                    <span class="flex h-1.5 w-1.5 rounded-full bg-emerald-300 pulse-emerald"></span>
+                    <p class="text-[10px] opacity-80 uppercase tracking-widest">Live Open Data</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <select id="vehicleType" class="bg-emerald-700 text-white text-sm rounded-md px-2 py-1 outline-none border border-emerald-500 focus:ring-2 focus:ring-white/50">
+                <option value="car">Cars 🚗</option>
+                <option value="motor">Motorcycles 🛵</option>
+            </select>
+            <button id="refreshBtn" class="p-2 hover:bg-emerald-500 rounded-full transition-colors flex items-center justify-center" title="Refresh Data">
+                <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex h-screen">
+        <!-- Sidebar -->
+        <aside class="w-full md:w-96 bg-white shadow-xl flex flex-col z-20 absolute md:relative transition-transform duration-300" id="sidebar">
+            <div class="p-4 border-b bg-slate-50/50">
+                <div class="relative">
+                    <input type="text" id="searchInput" placeholder="Search by name, address or area..." class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute left-3 top-2.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+            </div>
+            
+            <div id="resultsList" class="flex-1 overflow-y-auto p-4 space-y-3">
+                <div class="text-center py-20 text-slate-400">
+                    <div class="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p class="text-sm">Fetching real-time availability...</p>
+                </div>
+            </div>
+
+            <div class="p-3 bg-slate-50 text-[10px] text-slate-500 border-t flex justify-between items-center">
+                <div class="flex items-center gap-1">
+                    <div id="countdownCircle" class="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span id="refreshLabel">Auto-refresh in 60s</span>
+                </div>
+                <span id="lastUpdate">Updating...</span>
+            </div>
+        </aside>
+
+        <!-- Map Container -->
+        <div id="map" class="flex-1"></div>
+    </main>
+
+    <script>
+        // API Endpoints
+        const API_INFO = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_alldesc.json";
+        const API_STATUS = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_allavailable.json";
+
+        let map;
+        let markersGroup;
+        let parkingLots = [];
+        let markerMap = new Map();
+        let countdown = 60;
+        let refreshInterval;
+
+        // TWD97 to Lat/Lng Simplified Conversion
+        function twd97ToLatLng(x, y) {
+            const dx = parseFloat(x);
+            const dy = parseFloat(y);
+            const lat = 25.0 + (dy - 2765971.6) / 110852.8;
+            const lng = 121.5 + (dx - 302979.45) / 102324.2;
+            return [lat, lng];
+        }
+
+        function initMap() {
+            if (typeof L === 'undefined') {
+                setTimeout(initMap, 100);
+                return;
+            }
+
+            map = L.map('map', { zoomControl: false }).setView([25.0375, 121.5637], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            markersGroup = L.layerGroup().addTo(map);
+            
+            // Initial Fetch
+            fetchData();
+            startCountdown();
+        }
+
+        async function fetchData() {
+            const listContainer = document.getElementById('resultsList');
+            const updateEl = document.getElementById('lastUpdate');
+            const refreshIcon = document.getElementById('refreshIcon');
+            
+            // Visual feedback for loading
+            refreshIcon.classList.add('animate-spin');
+            
+            try {
+                const [infoRes, statusRes] = await Promise.all([
+                    fetch(API_INFO).then(r => r.json()),
+                    fetch(API_STATUS).then(r => r.json())
+                ]);
+
+                const infoData = infoRes.data.park;
+                const statusData = statusRes.data.park;
+
+                parkingLots = infoData.map(lot => {
+                    const status = statusData.find(s => s.id === lot.id) || {};
+                    return {
+                        ...lot,
+                        availableCar: parseInt(status.availablecar) || 0,
+                        availableMotor: parseInt(status.availablemotor) || 0,
+                        updateTime: status.updatetime
+                    };
+                }).filter(lot => lot.tw97x && lot.tw97y);
+
+                updateEl.innerText = `Last update: ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                renderMarkers(parkingLots);
+                renderList(parkingLots);
+                
+                // Reset countdown after successful fetch
+                countdown = 60;
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                if (parkingLots.length === 0) {
+                    listContainer.innerHTML = `<div class="p-4 text-red-600 text-sm bg-red-50 rounded-lg">Connection Error. Data unavailable.</div>`;
+                }
+            } finally {
+                setTimeout(() => refreshIcon.classList.remove('animate-spin'), 600);
+            }
+        }
+
+        function startCountdown() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            refreshInterval = setInterval(() => {
+                countdown--;
+                document.getElementById('refreshLabel').innerText = `Auto-refresh in ${countdown}s`;
+                if (countdown <= 0) {
+                    fetchData();
+                }
+            }, 1000);
+        }
+
+        function getStatusColor(available) {
+            if (available > 20) return '#10b981'; 
+            if (available > 5) return '#f59e0b';  
+            return '#ef4444';                     
+        }
+
+        function renderMarkers(data) {
+            if (!markersGroup) return;
+            markersGroup.clearLayers();
+            markerMap.clear();
+            const vehicle = document.getElementById('vehicleType').value;
+
+            data.forEach(lot => {
+                const coords = twd97ToLatLng(lot.tw97x, lot.tw97y);
+                const available = vehicle === 'car' ? lot.availableCar : lot.availableMotor;
+                const color = getStatusColor(available);
+
+                const icon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div class="marker-pin" style="background: ${color};"></div>`,
+                    iconSize: [30, 42],
+                    iconAnchor: [15, 42]
+                });
+
+                const marker = L.marker(coords, { icon: icon });
+                const popupContent = `
+                    <div class="p-1">
+                        <h4 class="font-bold text-slate-800 text-sm">${lot.name}</h4>
+                        <p class="text-[10px] text-slate-500 mb-1">${lot.address}</p>
+                        <div class="flex items-center justify-between bg-slate-50 p-1.5 rounded">
+                            <span class="text-[10px]">Available:</span>
+                            <span class="font-bold text-xs" style="color: ${color}">${available < 0 ? 0 : available}</span>
+                        </div>
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+                markersGroup.addLayer(marker);
+                markerMap.set(lot.id, marker);
+            });
+        }
+
+        function renderList(data) {
+            const container = document.getElementById('resultsList');
+            const vehicle = document.getElementById('vehicleType').value;
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            
+            const filtered = term ? data.filter(lot => 
+                lot.name.toLowerCase().includes(term) || 
+                lot.address.toLowerCase().includes(term) ||
+                lot.area.toLowerCase().includes(term)
+            ) : data;
+
+            container.innerHTML = '';
+            if (filtered.length === 0) {
+                container.innerHTML = '<p class="text-center text-slate-400 py-10 text-sm">No matches found.</p>';
+                return;
+            }
+
+            filtered.slice(0, 60).forEach(lot => {
+                const available = vehicle === 'car' ? lot.availableCar : lot.availableMotor;
+                const color = getStatusColor(available);
+                const card = document.createElement('div');
+                card.className = 'parking-card p-4 bg-white border border-slate-100 rounded-xl cursor-pointer shadow-sm';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="font-semibold text-slate-800 text-sm truncate pr-2">${lot.name}</h3>
+                        <span class="status-pill" style="background: ${color}15; color: ${color}">
+                            ${available <= 0 ? 'FULL' : (available < 0 ? 0 : available)}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-3 truncate">${lot.address}</p>
+                    <div class="flex items-center justify-between border-t pt-2 border-slate-50">
+                        <span class="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold">${lot.area}</span>
+                        <span class="text-[10px] font-medium text-emerald-600">Show on Map →</span>
+                    </div>
+                `;
+                card.onclick = () => {
+                    if (!map) return;
+                    map.flyTo(twd97ToLatLng(lot.tw97x, lot.tw97y), 17);
+                    const marker = markerMap.get(lot.id);
+                    if (marker) marker.openPopup();
+                };
+                container.appendChild(card);
+            });
+        }
+
+        window.addEventListener('load', () => {
+            initMap();
+            document.getElementById('refreshBtn').addEventListener('click', fetchData);
+            document.getElementById('searchInput').addEventListener('input', () => renderList(parkingLots));
+            document.getElementById('vehicleType').addEventListener('change', () => {
+                renderMarkers(parkingLots);
+                renderList(parkingLots);
+            });
+        });
+    </script>
+</body>
+</html>
