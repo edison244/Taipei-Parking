@@ -3,311 +3,287 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>台灣即時停車位查詢</title>
+    <title>Linkou Ultra Depth - NTPC Parking</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         :root { --header-height: 72px; }
-        
         body { 
-            overscroll-behavior: none; 
-            height: 100vh; 
-            width: 100vw; 
-            position: fixed; 
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang TC", sans-serif;
-            background-color: #f8fafc;
-        }
-
-        #resultsList { 
-            -webkit-overflow-scrolling: touch; 
-            overflow-y: auto;
-            scroll-behavior: smooth;
-            touch-action: pan-y;
-            padding-bottom: calc(120px + env(safe-area-inset-bottom)); 
-            overscroll-behavior-y: contain;
-        }
-
-        #map { height: calc(100vh - var(--header-height)); width: 100%; z-index: 1; }
-
-        input[type="search"] { font-size: 16px; }
-
-        .parking-card { 
-            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.1s ease;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        .parking-card:active { 
-            transform: scale(0.97);
+            overscroll-behavior: none; height: 100vh; width: 100vw; position: fixed; 
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC", sans-serif;
             background-color: #f1f5f9;
         }
-
-        .custom-div-icon { background: none; border: none; }
+        #resultsList { 
+            -webkit-overflow-scrolling: touch; overflow-y: auto; 
+            padding-bottom: calc(100px + env(safe-area-inset-bottom)); 
+        }
+        #map { height: calc(100vh - var(--header-height)); width: 100%; z-index: 1; }
+        .parking-card { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); border-left: 4px solid transparent; }
+        .parking-card:active { transform: translateY(2px); }
+        .priority-linkou { border-left-color: #2563eb; background: #eff6ff !important; }
         .marker-pin {
-            width: 26px; height: 26px; border-radius: 50% 50% 50% 0;
+            width: 22px; height: 22px; border-radius: 50% 50% 50% 0;
             position: absolute; transform: rotate(-45deg);
-            left: 50%; top: 50%; margin: -13px 0 0 -13px;
-            border: 2.5px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            left: 50%; top: 50%; margin: -11px 0 0 -11px;
+            border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-
-        .glass-header {
-            background: rgba(15, 23, 42, 0.94);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-        }
-
+        .glass-header { background: #0f172a; border-bottom: 1px solid #1e293b; }
         @media (max-width: 768px) {
             .mobile-map-active #sidebar { display: none; }
             .mobile-list-active #map { display: none; }
         }
-
-        .pulse-emerald { animation: pulse-emerald 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes pulse-emerald { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+        .live-dot { animation: blink 1.5s ease-in-out infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
 </head>
 <body class="flex flex-col mobile-list-active">
 
-    <header class="h-[72px] glass-header text-white flex items-center justify-between px-4 shadow-lg z-30 flex-shrink-0 border-b border-slate-700/50 pt-[env(safe-area-inset-top)]">
-        <div class="flex items-center gap-3">
-            <div class="bg-blue-600 p-2 rounded-xl shadow-inner">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+    <header class="h-[72px] glass-header text-white flex items-center justify-between px-5 z-30 flex-shrink-0">
+        <div class="flex items-center gap-4">
+            <div class="bg-blue-600 p-2.5 rounded-xl shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
                 </svg>
             </div>
             <div>
-                <h1 class="font-black text-sm md:text-lg tracking-tight uppercase leading-none mb-1">Linkou Parking Hub</h1>
+                <h1 class="font-black text-sm tracking-tight uppercase italic">Linkou Ultra Hub</h1>
                 <div class="flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-emerald"></span>
-                    <p class="text-[9px] text-slate-400 uppercase font-bold tracking-widest">A9 林口站及週邊優先</p>
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-400 live-dot"></span>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Ultra Max 30k Scan</p>
                 </div>
             </div>
         </div>
-        <div class="flex gap-2">
-            <button id="refreshBtn" class="p-3 bg-slate-800/80 hover:bg-slate-700 rounded-xl transition-all active:scale-90 border border-slate-700">
-                <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-            </button>
-        </div>
+        <button id="refreshBtn" class="p-2.5 bg-slate-800 rounded-xl border border-slate-700 active:bg-slate-700 transition-colors">
+            <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+        </button>
     </header>
 
     <main class="flex flex-1 overflow-hidden relative">
-        <aside class="w-full md:w-96 bg-white shadow-2xl flex flex-col z-20 flex-shrink-0" id="sidebar">
-            <div class="p-4 border-b bg-slate-50/50">
+        <aside class="w-full md:w-[400px] bg-white flex flex-col z-20 shadow-2xl" id="sidebar">
+            <div class="p-4 bg-slate-50 border-b">
                 <div class="relative">
-                    <input type="search" id="searchInput" placeholder="搜尋林口、A9 或全台場次..." class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute left-3.5 top-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <input type="search" id="searchInput" placeholder="搜尋 A9, 林口站, 三井 Outlet..." class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-600 outline-none shadow-sm transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3.5 top-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </div>
             </div>
             
-            <div id="resultsList" class="flex-1 p-4 space-y-4 bg-slate-50/20">
-                <div class="text-center py-24">
-                    <div class="animate-spin h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-                    <p class="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">正在彙整林口區域資料...</p>
+            <div id="resultsList" class="flex-1 overflow-y-auto bg-slate-50/50 p-4 space-y-3">
+                <div class="flex flex-col items-center justify-center h-full opacity-40">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                    <span id="loaderText" class="text-[10px] font-black tracking-widest uppercase text-center px-4">正在極限搜尋全台車位 (30000筆)...</span>
                 </div>
             </div>
 
-            <div class="p-3 bg-white text-[10px] text-slate-400 border-t flex justify-between items-center px-6 font-bold uppercase tracking-widest flex-shrink-0 pb-[env(safe-area-inset-bottom)]">
-                <div class="flex items-center gap-1.5">
-                    <span id="refreshLabel">區域關鍵字：林口、A9、環球</span>
-                </div>
-                <span id="lastUpdate">更新中...</span>
+            <div class="p-4 bg-white border-t flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <span class="flex items-center gap-1.5"><span id="countBadge" class="bg-slate-100 px-2 py-0.5 rounded text-blue-600">0</span> 處同步中</span>
+                <span id="lastUpdate">Checking...</span>
             </div>
         </aside>
 
         <div id="map" class="flex-1"></div>
         
-        <button id="viewToggle" class="md:hidden fixed bottom-10 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-3 font-bold text-sm tracking-widest active:scale-95 transition-transform border border-slate-700">
-            <span id="toggleText">查看地圖</span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A2 2 0 013 15.488V5.512a2 2 0 011.553-1.954L9 1l6 2.5 5.447-2.724A2 2 0 0121 2.512v9.976a2 2 0 01-1.553 1.954L15 17l-6 3z" />
-            </svg>
+        <button id="viewToggle" class="md:hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-8 py-4 rounded-full shadow-2xl font-black text-xs tracking-[0.2em] border border-slate-700 active:scale-95 transition-transform">
+            <span id="toggleText">MAP VIEW</span>
         </button>
     </main>
 
     <script>
-        const NTP_API = "https://data.ntpc.gov.tw/api/datasets/B1464EF0-9C7C-4A6F-AB7D-5BDFDC2840F4/json?page=0&size=1000";
+        const NTP_BASE = "https://data.ntpc.gov.tw/api/datasets/B1464EF0-9C7C-4A6F-AB7D-5BDFDC2840F4/json";
         const TP_INFO = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_alldesc.json";
         const TP_STATUS = "https://tcgbusfs.blob.core.windows.net/blobtcmsv/TCMSV_allavailable.json";
         
         let map, markersGroup, parkingLots = [], markerMap = new Map();
         let isMapView = false;
 
-        function twd97ToLatLng(x, y) {
-            const dx = parseFloat(x), dy = parseFloat(y);
-            return [25.0 + (dy - 2765971.6) / 110852.8, 121.5 + (dx - 302979.45) / 102324.2];
-        }
+        const twd97ToLatLng = (x, y) => [
+            25.0 + (parseFloat(y) - 2765971.6) / 110852.8,
+            121.5 + (parseFloat(x) - 302979.45) / 102324.2
+        ];
 
         function initMap() {
-            map = L.map('map', { zoomControl: false, tap: false }).setView([25.066032, 121.361957], 15);
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([25.066, 121.361], 15);
             L.tileLayer('https://{s}.tile.osm.org/{z}/{x}/{y}.png').addTo(map);
             markersGroup = L.layerGroup().addTo(map);
             fetchData();
         }
 
         async function fetchData() {
-            const refreshIcon = document.getElementById('refreshIcon');
-            refreshIcon.classList.add('animate-spin');
+            const icon = document.getElementById('refreshIcon');
+            const loaderText = document.getElementById('loaderText');
+            icon.classList.add('animate-spin');
             
             try {
-                const [ntp, tpI, tpS] = await Promise.allSettled([
-                    fetch(NTP_API).then(r => r.json()),
+                // ULTRA MAX DEPTH: Fetch 30 pages of 1000 records each in parallel batches to avoid browser timeouts
+                const batchSize = 10;
+                const totalPages = 50;
+                let allNtpData = [];
+
+                for (let i = 0; i < totalPages; i += batchSize) {
+                    if(loaderText) loaderText.innerText = `正在深度讀取數據 (${i * 1000} - ${(i + batchSize) * 1000} 筆)...`;
+                    const batch = Array.from({length: batchSize}, (_, j) => 
+                        fetch(`${NTP_BASE}?page=${i + j}&size=1000`).then(r => r.json()).catch(() => [])
+                    );
+                    const results = await Promise.all(batch);
+                    const flattened = results.flat();
+                    if (flattened.length === 0) break; // Stop early if no more data
+                    allNtpData = [...allNtpData, ...flattened];
+                }
+
+                const [tpInfoRes, tpStatRes] = await Promise.allSettled([
                     fetch(TP_INFO).then(r => r.json()),
                     fetch(TP_STATUS).then(r => r.json())
                 ]);
 
-                let processed = [];
-                const linkouKeywords = ["林口", "A9", "環球", "文化三路", "捷運站轉乘", "Global Mall"];
+                let rawData = [];
+                const linkouKeywords = ["林口", "A9", "環球", "文化三路", "捷運站轉乘", "Global Mall", "三井", "文化二路", "忠孝路", "仁愛路", "公園路", "龜山"];
 
-                // 1. New Taipei Processing
-                if (ntp.status === 'fulfilled') {
-                    ntp.value.forEach(lot => {
-                        const name = lot.NAME || "";
-                        const address = lot.ADDRESS || "";
-                        
-                        // Check if it's Linkou-related
-                        const isLinkouRelated = linkouKeywords.some(kw => name.includes(kw) || address.includes(kw));
-                        const isMainA9 = name.includes("林口站轉乘") || (name.includes("A9") && name.includes("林口"));
+                // Process NTPC (Ultra Sync)
+                allNtpData.forEach(lot => {
+                    if(!lot.ID || !lot.NAME) return;
+                    const name = lot.NAME || "";
+                    const address = lot.ADDRESS || "";
+                    
+                    let priority = 2;
+                    let areaLabel = "NTPC";
+                    
+                    const isA9 = name.includes("林口站") || name.includes("A9") || address.includes("八德路290號");
+                    const isLinkouArea = linkouKeywords.some(kw => name.includes(kw) || address.includes(kw));
 
-                        processed.push({
-                            id: `ntp-${lot.ID}`,
-                            name: isMainA9 ? "A9 林口站轉乘停車場 (Global Mall)" : name,
-                            address: lot.ADDRESS || name,
-                            area: isLinkouRelated ? "林口核心" : "新北市",
-                            lat: parseFloat(lot.LAT),
-                            lng: parseFloat(lot.LON),
-                            av: parseInt(lot.AVAILABLE) || 0,
-                            priority: isMainA9 ? 0 : (isLinkouRelated ? 1 : 3)
-                        });
+                    if (isA9) {
+                        priority = 0;
+                        areaLabel = "LINKOU";
+                    } else if (isLinkouArea) {
+                        priority = 1;
+                        areaLabel = "LINKOU";
+                    }
+                    
+                    rawData.push({
+                        id: `ntp-${lot.ID}`,
+                        name: isA9 ? "A9 林口站轉乘停車場" : name,
+                        address: address || "新北市",
+                        area: areaLabel,
+                        lat: parseFloat(lot.LAT),
+                        lng: parseFloat(lot.LON),
+                        available: Math.max(0, parseInt(lot.AVAILABLE) || 0),
+                        priority: priority
                     });
-                }
+                });
 
-                // 2. Taipei Processing (Fallback/Other areas)
-                if (tpI.status === 'fulfilled' && tpS.status === 'fulfilled') {
-                    const info = tpI.value.data.park;
-                    const status = tpS.value.data.park;
-                    info.forEach(lot => {
-                        const s = status.find(st => st.id === lot.id) || {};
+                // Process Taipei (Priority 3)
+                if (tpInfoRes.status === 'fulfilled' && tpStatRes.status === 'fulfilled') {
+                    const stats = tpStatRes.value.data.park;
+                    tpInfoRes.value.data.park.forEach(lot => {
+                        const status = stats.find(s => s.id === lot.id) || {};
                         const coords = twd97ToLatLng(lot.tw97x, lot.tw97y);
-                        processed.push({
+                        rawData.push({
                             id: `tp-${lot.id}`,
-                            name: lot.name, address: lot.address,
-                            area: "台北市", lat: coords[0], lng: coords[1],
-                            av: parseInt(s.availablecar) || 0,
+                            name: lot.name,
+                            address: lot.address,
+                            area: "TAIPEI",
+                            lat: coords[0],
+                            lng: coords[1],
+                            available: Math.max(0, parseInt(status.availablecar) || 0),
                             priority: 3
                         });
                     });
                 }
 
-                // 3. Airport Priority (Hardcoded)
-                processed.push({
-                    id: 'tpe-t1', name: '桃園機場 T1 停車場 (P1)', address: '桃園國際機場 第一航廈',
-                    area: '機場', lat: 25.0833, lng: 121.2333, av: Math.floor(Math.random() * 200), priority: 2
-                });
-                processed.push({
-                    id: 'tpe-t2', name: '桃園機場 T2 停車場 (P4)', address: '桃園國際機場 第二航廈',
-                    area: '機場', lat: 25.0772, lng: 121.2325, av: Math.floor(Math.random() * 150), priority: 2
-                });
-
-                // Deduping
-                const unique = [];
-                const seen = new Set();
-                processed.forEach(p => {
-                    const key = p.name.toLowerCase().trim();
-                    if (!seen.has(key)) { seen.add(key); unique.push(p); }
+                // Deduplicate by ID
+                const unique = new Map();
+                rawData.forEach(item => {
+                    const key = item.id;
+                    if (!unique.has(key) || unique.get(key).priority > item.priority) {
+                        unique.set(key, item);
+                    }
                 });
 
-                // Global Sort: 0 (A9) -> 1 (Linkou Related) -> 2 (Airport) -> 3 (Others)
-                parkingLots = unique.sort((a, b) => a.priority - b.priority);
-
+                parkingLots = Array.from(unique.values()).sort((a, b) => a.priority - b.priority);
+                
+                document.getElementById('countBadge').innerText = parkingLots.length;
                 renderUI();
-                document.getElementById('lastUpdate').innerText = `${new Date().toLocaleTimeString('zh-TW', {hour: '2-digit', minute:'2-digit'})}`;
-            } catch (e) {
-                console.error("Fetch Error");
+                document.getElementById('lastUpdate').innerText = `${new Date().toLocaleTimeString('zh-TW')}`;
+            } catch (err) {
+                console.error("Ultra Sync Failure", err);
             } finally {
-                setTimeout(() => refreshIcon.classList.remove('animate-spin'), 600);
+                setTimeout(() => icon.classList.remove('animate-spin'), 600);
             }
         }
 
         function renderUI() {
             const term = document.getElementById('searchInput').value.toLowerCase();
             const filtered = term ? parkingLots.filter(l => 
-                l.name.toLowerCase().includes(term) || l.address.toLowerCase().includes(term)
+                l.name.toLowerCase().includes(term) || l.address.toLowerCase().includes(term) || l.area.toLowerCase().includes(term)
             ) : parkingLots;
 
             markersGroup.clearLayers();
             markerMap.clear();
-            
-            // Map logic: priority to items in view or high priority
-            filtered.slice(0, 150).forEach(lot => {
-                const color = lot.av > 20 ? '#10b981' : (lot.av > 0 ? '#f59e0b' : '#ef4444');
+
+            // Map Markers: Top 1000 for high-density visualization
+            filtered.slice(0, 1000).forEach(lot => {
+                const color = lot.available > 10 ? '#10b981' : (lot.available > 0 ? '#f59e0b' : '#ef4444');
                 const m = L.marker([lot.lat, lot.lng], {
                     icon: L.divIcon({
-                        className: 'custom-div-icon',
-                        html: `<div class="marker-pin shadow-md" style="background:${color}"></div>`
+                        className: '',
+                        html: `<div class="marker-pin" style="background:${color}"></div>`
                     })
-                }).bindPopup(`<div class="p-1 font-bold text-xs">${lot.name}<br><span class="text-blue-600">剩餘 ${lot.av} 車位</span></div>`);
+                }).bindPopup(`<div class="text-xs font-bold">${lot.name}<br><span class="text-blue-600 font-black">空位: ${lot.available}</span></div>`);
                 markersGroup.addLayer(m);
                 markerMap.set(lot.id, m);
             });
 
             const list = document.getElementById('resultsList');
-            list.innerHTML = '';
-            
-            filtered.forEach(lot => {
-                const color = lot.av > 20 ? '#10b981' : (lot.av > 5 ? '#f59e0b' : '#ef4444');
-                const isA9 = lot.priority === 0;
-                const isLinkou = lot.priority === 1;
-                const isAirport = lot.priority === 2;
-                
-                const card = document.createElement('div');
-                card.className = `parking-card p-5 bg-white border border-slate-100 rounded-[24px] shadow-sm cursor-pointer ${isA9 ? 'ring-2 ring-blue-600 bg-blue-50/40' : (isLinkou ? 'border-blue-200 bg-blue-50/10' : '')}`;
-                card.innerHTML = `
-                    <div class="flex justify-between items-start gap-3">
-                        <div class="flex-1">
-                            <div class="flex items-center gap-2 mb-1">
-                                <h3 class="font-black text-slate-800 text-[14px] leading-tight">${lot.name}</h3>
-                                ${isA9 ? `<span class="bg-blue-600 text-white text-[7px] px-2 py-0.5 rounded-md font-black uppercase tracking-tighter">主要目標</span>` : ''}
-                                ${isLinkou ? `<span class="bg-blue-400 text-white text-[7px] px-2 py-0.5 rounded-md font-black uppercase tracking-tighter">區域關聯</span>` : ''}
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="p-10 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">無相關結果</div>`;
+                return;
+            }
+
+            list.innerHTML = filtered.map(lot => {
+                const color = lot.available > 10 ? '#10b981' : (lot.available > 0 ? '#f59e0b' : '#ef4444');
+                const isLinkou = lot.priority < 2;
+                return `
+                    <div class="parking-card p-5 bg-white border border-slate-200 rounded-[24px] shadow-sm cursor-pointer hover:border-blue-400 ${isLinkou ? 'priority-linkou ring-1 ring-blue-100' : ''}" 
+                         onclick="focusLot('${lot.id}', ${lot.lat}, ${lot.lng})">
+                        <div class="flex justify-between items-start gap-3">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <h3 class="font-black text-slate-800 text-sm leading-tight">${lot.name}</h3>
+                                    ${lot.priority === 0 ? `<span class="bg-blue-600 text-white text-[8px] px-2 py-0.5 rounded-full font-black uppercase">捷運 A9</span>` : ''}
+                                    ${lot.priority === 1 ? `<span class="bg-slate-800 text-white text-[8px] px-2 py-0.5 rounded-full font-black uppercase">林口區</span>` : ''}
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md tracking-tight">${lot.area}</span>
+                                    <p class="text-[10px] text-slate-400 truncate w-40">${lot.address}</p>
+                                </div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-[8px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md uppercase">${lot.area}</span>
-                                <p class="text-[10px] text-slate-400 truncate w-40 font-medium">${lot.address}</p>
+                            <div class="text-right">
+                                <div class="text-xl font-black italic tracking-tighter" style="color:${color}">${lot.available}</div>
+                                <div class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">剩餘</div>
                             </div>
-                        </div>
-                        <div class="text-right flex flex-col items-end">
-                            <span class="text-sm font-black px-3 py-1.5 rounded-2xl shadow-sm" style="background:${color}20; color:${color}">
-                                ${lot.av}
-                            </span>
-                            <span class="text-[8px] text-slate-400 mt-1 font-bold uppercase tracking-widest">車位</span>
                         </div>
                     </div>
                 `;
-                card.onclick = () => {
-                    if (window.innerWidth < 768) toggleView(true);
-                    map.flyTo([lot.lat, lot.lng], 17);
-                    setTimeout(() => {
-                        if (markerMap.has(lot.id)) markerMap.get(lot.id).openPopup();
-                    }, 400);
-                };
-                list.appendChild(card);
-            });
+            }).join('');
         }
+
+        window.focusLot = (id, lat, lng) => {
+            if (window.innerWidth < 768) toggleView(true);
+            map.flyTo([lat, lng], 17);
+            setTimeout(() => {
+                if (markerMap.has(id)) markerMap.get(id).openPopup();
+            }, 400);
+        };
 
         function toggleView(showMap = null) {
             isMapView = showMap !== null ? showMap : !isMapView;
-            const body = document.body;
-            const toggleText = document.getElementById('toggleText');
-            if (isMapView) {
-                body.classList.replace('mobile-list-active', 'mobile-map-active');
-                toggleText.innerText = "查看列表";
-                map.invalidateSize();
-            } else {
-                body.classList.replace('mobile-map-active', 'mobile-list-active');
-                toggleText.innerText = "查看地圖";
-            }
+            document.body.classList.toggle('mobile-map-active', isMapView);
+            document.body.classList.toggle('mobile-list-active', !isMapView);
+            document.getElementById('toggleText').innerText = isMapView ? "列表模式" : "地圖模式";
+            if (isMapView) setTimeout(() => map.invalidateSize(), 100);
         }
 
         window.onload = () => {
@@ -315,7 +291,7 @@
             document.getElementById('refreshBtn').onclick = fetchData;
             document.getElementById('searchInput').oninput = renderUI;
             document.getElementById('viewToggle').onclick = () => toggleView();
-            setInterval(fetchData, 60000);
+            setInterval(fetchData, 120000); // 2 min refresh for massive data stability
         };
     </script>
 </body>
